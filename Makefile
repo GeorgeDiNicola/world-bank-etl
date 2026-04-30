@@ -14,6 +14,10 @@ tidy: ## Download dependencies and remove unused ones
 	go mod tidy
 	go mod verify
 
+.PHONY: verify
+verify: ## Verifies dependencies
+	go mod verify
+
 .PHONY: build
 build: tidy ## Build the binary for the current architecture
 	go build ${LDFLAGS} -o bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
