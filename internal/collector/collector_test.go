@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -149,6 +150,85 @@ func TestGetAllIndicatorsRateLimitsWorkerRequests(t *testing.T) {
 	}
 }
 
+func TestGetAllObservationsBatchesIndicatorsBySourceID(t *testing.T) {
+	var requestedIndicatorBatches []string
+	var requestedSourceIDs []string
+
+	stubFetchObservations(t, func(page int, indicators, countries, sourceID string, perPage int, timeout time.Duration) ([]model.Observation, model.PageMetadata, error) {
+		requestedIndicatorBatches = append(requestedIndicatorBatches, indicators)
+		requestedSourceIDs = append(requestedSourceIDs, sourceID)
+		return []model.Observation{}, model.PageMetadata{Page: 1, Pages: 1}, nil
+	})
+
+	collector := NewCollector()
+	indicators := []model.Indicator{
+		{ID: "indicator-1", Source: model.Source{ID: "source-a"}},
+		{ID: "indicator-2", Source: model.Source{ID: "source-a"}},
+		{ID: "indicator-3", Source: model.Source{ID: "source-b"}},
+		{ID: "indicator-4", Source: model.Source{ID: "source-a"}},
+	}
+
+	_, err := collector.GetAllObservations(indicators, []string{"USA"})
+	if err != nil {
+		t.Fatalf("GetAllObservations() returned error: %v", err)
+	}
+
+	wantBatches := []string{"indicator-1;indicator-2;indicator-4", "indicator-3"}
+	if !slices.Equal(requestedIndicatorBatches, wantBatches) {
+		t.Fatalf("GetAllObservations() requested batches = %v, want %v", requestedIndicatorBatches, wantBatches)
+	}
+
+	wantSourceIDs := []string{"source-a", "source-b"}
+	if !slices.Equal(requestedSourceIDs, wantSourceIDs) {
+		t.Fatalf("GetAllObservations() source IDs = %v, want %v", requestedSourceIDs, wantSourceIDs)
+	}
+}
+
+func TestGetAllObservationsSplitsLargeSourceGroups(t *testing.T) {
+	var requestedIndicatorBatches []string
+	var requestedSourceIDs []string
+
+	stubFetchObservations(t, func(page int, indicators, countries, sourceID string, perPage int, timeout time.Duration) ([]model.Observation, model.PageMetadata, error) {
+		requestedIndicatorBatches = append(requestedIndicatorBatches, indicators)
+		requestedSourceIDs = append(requestedSourceIDs, sourceID)
+		return []model.Observation{}, model.PageMetadata{Page: 1, Pages: 1}, nil
+	})
+
+	collector := NewCollector()
+	indicators := make([]model.Indicator, 0, indicatorBatchSize+1)
+	for i := 1; i <= indicatorBatchSize+1; i++ {
+		indicators = append(indicators, model.Indicator{
+			ID:     fmt.Sprintf("indicator-%d", i),
+			Source: model.Source{ID: "source-a"},
+		})
+	}
+
+	_, err := collector.GetAllObservations(indicators, []string{"USA"})
+	if err != nil {
+		t.Fatalf("GetAllObservations() returned error: %v", err)
+	}
+
+	if len(requestedIndicatorBatches) != 2 {
+		t.Fatalf("GetAllObservations() batch count = %d, want 2", len(requestedIndicatorBatches))
+	}
+
+	firstBatchIDs := strings.Split(requestedIndicatorBatches[0], ";")
+	secondBatchIDs := strings.Split(requestedIndicatorBatches[1], ";")
+
+	if len(firstBatchIDs) != indicatorBatchSize {
+		t.Fatalf("first batch size = %d, want %d", len(firstBatchIDs), indicatorBatchSize)
+	}
+
+	if len(secondBatchIDs) != 1 {
+		t.Fatalf("second batch size = %d, want 1", len(secondBatchIDs))
+	}
+
+	wantSourceIDs := []string{"source-a", "source-a"}
+	if !slices.Equal(requestedSourceIDs, wantSourceIDs) {
+		t.Fatalf("GetAllObservations() source IDs = %v, want %v", requestedSourceIDs, wantSourceIDs)
+	}
+}
+
 func stubFetchIndicators(
 	t *testing.T,
 	stub func(page int, timeout time.Duration) ([]model.Indicator, model.PageMetadata, error),
@@ -157,10 +237,26 @@ func stubFetchIndicators(
 
 	// swap the func variable with the stub
 	originalFetchIndicators := fetchIndicators
-	fetchIndicators = stub
+	fetchIndicators = func(page int, perPage int, timeout time.Duration) ([]model.Indicator, model.PageMetadata, error) {
+		return stub(page, timeout)
+	}
 
 	t.Cleanup(func() {
 		fetchIndicators = originalFetchIndicators
+	})
+}
+
+func stubFetchObservations(
+	t *testing.T,
+	stub func(page int, indicators, countries, sourceID string, perPage int, timeout time.Duration) ([]model.Observation, model.PageMetadata, error),
+) {
+	t.Helper()
+
+	originalFetchObservations := fetchObservations
+	fetchObservations = stub
+
+	t.Cleanup(func() {
+		fetchObservations = originalFetchObservations
 	})
 }
 

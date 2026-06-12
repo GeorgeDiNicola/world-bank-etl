@@ -26,6 +26,11 @@ func TestSaveIndicatorsToCSVWritesExpectedContent(t *testing.T) {
 		{
 			ID:   "indicator-1",
 			Name: "Indicator 1",
+			Source: model.Source{
+				ID:    "37",
+				Value: "LAC Equity Lab",
+			},
+			SourceOrganization: "LAC Equity Lab tabulations of SEDLAC (CEDLAS and the World Bank).",
 			Topics: []model.Topic{
 				{ID: "1", Value: "Topic 1"},
 				{ID: "2", Value: "Topic 2"},
@@ -44,11 +49,11 @@ func TestSaveIndicatorsToCSVWritesExpectedContent(t *testing.T) {
 	}
 
 	got := string(content)
-	if !strings.Contains(got, "id,name,topics") {
+	if !strings.Contains(got, "id,name,source_id,source,source_organization,topics") {
 		t.Fatalf("saved CSV = %q, want header row", got)
 	}
 
-	if !strings.Contains(got, "indicator-1,Indicator 1,\"Topic 1, Topic 2\"") {
+	if !strings.Contains(got, "indicator-1,Indicator 1,37,LAC Equity Lab,LAC Equity Lab tabulations of SEDLAC (CEDLAS and the World Bank).,\"Topic 1, Topic 2\"") {
 		t.Fatalf("saved CSV = %q, want indicator row", got)
 	}
 }
