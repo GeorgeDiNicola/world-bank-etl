@@ -17,17 +17,34 @@ func (s stubCollector) GetAllIndicators() ([]model.Indicator, error) {
 	return s.indicators, s.err
 }
 
+type stubObservationCollector struct {
+	observations []model.Observation
+	err          error
+}
+
+func (s stubObservationCollector) GetAllObservations(indicators []model.Indicator, countries []string) ([]model.Observation, error) {
+	return s.observations, s.err
+}
+
 func TestRun(t *testing.T) {
 	// store the real functions so they can be returned to their original state when tests are done
 	originalNewIndicatorCollector := newIndicatorCollector
+	originalNewObservationCollector := newObservationCollector
 	originalSaveIndicators := saveIndicators
 
 	// mock indicator collector
 	newIndicatorCollector = func(opts ...collector.Option) indicatorCollector {
 		return stubCollector{
 			indicators: []model.Indicator{
-				{ID: "indicator-1", Name: "Indicator 1"},
+				{ID: "NY.GDP.PCAP.CD", Name: "GDP per capita", Source: model.Source{ID: "2", Value: "World Development Indicators"}},
+				{ID: "SP.POP.TOTL", Name: "Population, total", Source: model.Source{ID: "2", Value: "World Development Indicators"}},
 			},
+		}
+	}
+
+	newObservationCollector = func(opts ...collector.Option) observationCollector {
+		return stubObservationCollector{
+			observations: []model.Observation{},
 		}
 	}
 
@@ -39,6 +56,7 @@ func TestRun(t *testing.T) {
 	// restore original state
 	t.Cleanup(func() {
 		newIndicatorCollector = originalNewIndicatorCollector
+		newObservationCollector = originalNewObservationCollector
 		saveIndicators = originalSaveIndicators
 	})
 

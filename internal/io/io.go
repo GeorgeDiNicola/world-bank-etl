@@ -26,7 +26,7 @@ func SaveIndicatorsToCSV(filename string, indicators []model.Indicator) error {
 }
 
 func writeIndicatorsCSV(writer *csv.Writer, indicators []model.Indicator) error {
-	if err := writer.Write([]string{"id", "name", "topics"}); err != nil {
+	if err := writer.Write([]string{"id", "name", "source_id", "source", "source_organization", "topics"}); err != nil {
 		return err
 	}
 
@@ -41,6 +41,9 @@ func writeIndicatorsCSV(writer *csv.Writer, indicators []model.Indicator) error 
 		if err := writer.Write([]string{
 			ind.ID,
 			ind.Name,
+			ind.Source.ID,
+			ind.Source.Value,
+			ind.SourceOrganization,
 			strings.Join(topicNames, ", "),
 		}); err != nil {
 			return err
